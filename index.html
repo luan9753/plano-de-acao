@@ -246,6 +246,25 @@
   .card-actions button:hover { opacity: 1; background: var(--line); }
   .badge-custom { font-size: 10px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 999px; padding: 2px 7px; letter-spacing: .03em; }
 
+  /* Trava por nome */
+  .name-warn {
+    display: none; margin-top: 8px; font-size: 12px; line-height: 1.4;
+    color: #fff; background: rgba(220, 53, 69, .92); border-radius: 8px; padding: 8px 10px;
+  }
+  .name-warn.show { display: block; }
+  #user-name.need-name {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(220,53,69,.28);
+    animation: shakeX .4s ease;
+  }
+  @keyframes shakeX {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
   /* Date groups */
   .date-group { margin-bottom: 28px; }
   .date-header {
@@ -548,6 +567,7 @@
     <div class="side-foot">
       <div class="lbl">Você é</div>
       <input id="user-name" type="text" placeholder="Digite seu nome">
+      <div class="name-warn" id="name-warn">🔒 Digite seu nome para poder interagir com o plano.</div>
       <div class="live off" id="sync-status"><span class="dot"></span> <span id="sync-status-text">Conectando anotações…</span></div>
     </div>
   </aside>
@@ -3415,6 +3435,7 @@ function buildRespPicker() {
 }
 
 function openActionModal(id) {
+  if (!requireName()) return;
   editingActionId = id || null;
   modalRespSel = new Set();
   const titleEl = $("#af-title"), dateEl = $("#af-deadline"), extraEl = $("#af-resp-extra");
@@ -3455,6 +3476,7 @@ function collectRespFromModal() {
 }
 
 async function saveAction() {
+  if (!requireName()) { closeActionModal(); return; }
   const title = $("#af-title").value.trim();
   const deadline = $("#af-deadline").value;
   let ok = true;
@@ -3500,6 +3522,7 @@ async function saveAction() {
 }
 
 async function deleteCustomAction(id) {
+  if (!requireName()) return;
   const a = ACTIONS.find(x => x.id === id);
   if (!a || !a.custom) return;
   if (!confirm(`Excluir a ação ${id}?\n\n"${a.title}"\n\nIsso vale para TODOS e não pode ser desfeito.`)) return;
@@ -3565,7 +3588,32 @@ function shortBrowser() {
   return os ? `${name} · ${os}` : name;
 }
 
+function hasName() { return !!(user && user.trim()); }
+
+function updateNameGate() {
+  const warn = $("#name-warn");
+  if (warn) warn.classList.toggle("show", !hasName());
+  document.body.classList.toggle("no-name", !hasName());
+}
+
+// Bloqueia qualquer ação se o nome não estiver preenchido
+function requireName() {
+  if (hasName()) return true;
+  const input = $("#user-name");
+  const warn = $("#name-warn");
+  if (warn) warn.classList.add("show");
+  if (input) {
+    input.classList.remove("need-name");
+    void input.offsetWidth; // reinicia a animação
+    input.classList.add("need-name");
+    input.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => input.focus(), 250);
+  }
+  return false;
+}
+
 function addLog(type, itemId, details) {
+  if (!hasName()) return; // segurança extra: nunca registrar sem nome
   const entry = {
     ts: new Date().toISOString(),
     tsBR: nowStamp(),
@@ -3753,6 +3801,7 @@ function renderCards() {
 
   container.querySelectorAll("[data-toggle]").forEach(btn => {
     btn.addEventListener("click", async () => {
+      if (!requireName()) return;
       const id = btn.dataset.toggle;
       const a = ACTIONS.find(x => x.id === id);
       const cur = state[id]?.completed === true;
@@ -3814,6 +3863,7 @@ function renderCards() {
   });
   container.querySelectorAll("[data-note-save]").forEach(btn => {
     btn.addEventListener("click", () => {
+      if (!requireName()) return;
       const id = btn.dataset.noteSave;
       const ta = container.querySelector(`[data-note-input="${CSS.escape(id)}"]`);
       const text = ta.value.trim();
@@ -3826,6 +3876,7 @@ function renderCards() {
   // === Notes: excluir uma anotação específica ===
   container.querySelectorAll("[data-note-delete]").forEach(btn => {
     btn.addEventListener("click", () => {
+      if (!requireName()) return;
       const id = btn.dataset.noteDelete;
       const idx = parseInt(btn.dataset.noteIndex, 10);
       if (confirm("Excluir esta anotação? Essa ação é registrada no log e não pode ser desfeita.")) {
@@ -4222,8 +4273,16 @@ const userInput = $("#user-name"); userInput.value = user;
 userInput.addEventListener("change", () => {
   const old = user; user = userInput.value.trim();
   localStorage.setItem(KEY_USER, user);
-  addLog("user", "", `Nome alterado de "${old || '(vazio)'}" para "${user || '(vazio)'}"`);
+  updateNameGate();
+  if (hasName() && user !== old) {
+    userInput.classList.remove("need-name");
+    addLog("user", "", `Nome alterado de "${old || '(vazio)'}" para "${user}"`);
+  }
 });
+userInput.addEventListener("input", () => {
+  if (userInput.value.trim()) { $("#name-warn").classList.remove("show"); userInput.classList.remove("need-name"); }
+});
+updateNameGate();
 
 $$(".chip[data-resp]").forEach(chip => chip.addEventListener("click", () => {
   $$(".chip[data-resp]").forEach(c => c.classList.remove("active"));
@@ -4250,6 +4309,7 @@ $("#filter-clear").addEventListener("click", () => {
 });
 
 $("#btn-reset-flags").addEventListener("click", () => {
+  if (!requireName()) return;
   if (confirm("Zerar todas as conclusões marcadas? Isso vale para TODOS e será registrado no log. Esta ação não pode ser desfeita.")) {
     (async () => {
       try {
@@ -4267,6 +4327,7 @@ $("#btn-reset-flags").addEventListener("click", () => {
   }
 });
 $("#btn-export").addEventListener("click", () => {
+  if (!requireName()) return;
   const payload = { exportedAt: new Date().toISOString(), state, log, notes, customActions };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -4274,6 +4335,7 @@ $("#btn-export").addEventListener("click", () => {
   addLog("export", "", "Estado exportado para arquivo JSON (inclui anotações)");
 });
 $("#btn-import").addEventListener("click", () => {
+  if (!requireName()) return;
   const input = document.createElement("input"); input.type = "file"; input.accept = "application/json";
   input.addEventListener("change", e => {
     const file = e.target.files[0]; if (!file) return;
@@ -4336,6 +4398,7 @@ $("#log-export").addEventListener("click", () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `plano-acao-gelo_log_${todayISO()}.csv`; a.click();
 });
 $("#log-clear").addEventListener("click", () => {
+  if (!requireName()) return;
   if (confirm("Limpar todo o log compartilhado? Todos perderão o histórico. Essa ação não pode ser desfeita.")) {
     (async () => {
       try {
