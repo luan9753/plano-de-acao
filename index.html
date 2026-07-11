@@ -2636,7 +2636,7 @@ Antonio enviou em 07/07/2026 - A ordem de prioridades dos estados para o RH: PR/
     <!-- ================= TAB: LOG ================= -->
     <div class="tab-panel" id="tab-log">
       <h2 class="panel-title">📝 Log de Atividades</h2>
-      <div class="panel-sub">Registro cronológico de todas as movimentações no controle do plano</div>
+      <div class="panel-sub">Registro cronológico compartilhado — todos veem as movimentações de toda a equipe</div>
 
       <div class="log-wrap">
         <div class="log-head">
@@ -2727,8 +2727,8 @@ ADM: Anderson Sansini
     <footer class="notes">
       <strong>Compartilhamento entre pessoas</strong>
       <ul>
-        <li><strong>Anotações e observações</strong> são compartilhadas em tempo real via Supabase — todos que abrirem o link veem as mesmas entradas.</li>
-        <li>Conclusões, log e parâmetros de alerta continuam no navegador de cada pessoa (<code>localStorage</code>).</li>
+        <li><strong>Anotações e log de atividades</strong> são compartilhados em tempo real via Supabase — todos que abrirem o link veem as mesmas entradas.</li>
+        <li>Conclusões marcadas e parâmetros de alerta continuam no navegador de cada pessoa (<code>localStorage</code>).</li>
         <li>Digite seu nome na barra lateral antes de salvar anotações, para identificar quem escreveu.</li>
       </ul>
     </footer>
@@ -2853,10 +2853,11 @@ let notes    = loadJSON(KEY_NOTES, {});  // { itemId: [ {remoteId?, ts, tsBR, us
 let openNotes = new Set(); // ids atualmente com seção de anotações expandida
 
 // ============================================================
-// SUPABASE — anotações compartilhadas
+// SUPABASE — anotações e log compartilhados
 // ============================================================
 let sb = null;
 let notesSyncReady = false;
+let logSyncReady = false;
 
 function updateSyncBadge(mode, text) {
   const el = $("#sync-status");
@@ -2923,30 +2924,6 @@ function setupNotesRealtime() {
     .subscribe();
 }
 
-async function initSharedNotes() {
-  if (!supabaseConfigured()) {
-    updateSyncBadge("off", "Anotações só neste navegador");
-    return;
-  }
-  if (!window.supabase) {
-    updateSyncBadge("err", "Erro ao carregar Supabase");
-    return;
-  }
-  sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-  try {
-    const { data, error } = await sb.from("plano_notes").select("*").order("ts", { ascending: true });
-    if (error) throw error;
-    notes = rebuildNotesObject(data);
-    saveJSON(KEY_NOTES, notes);
-    notesSyncReady = true;
-    setupNotesRealtime();
-    updateSyncBadge("ok", "Anotações compartilhadas · ao vivo");
-  } catch (err) {
-    console.error("Falha ao sincronizar anotações:", err);
-    updateSyncBadge("err", "Falha na sincronização");
-  }
-}
-
 async function pushNoteToRemote(id, entry) {
   if (!sb || !notesSyncReady) return true;
   const { data, error } = await sb.from("plano_notes").insert({
@@ -2966,6 +2943,110 @@ async function deleteNoteFromRemote(entry) {
   const { error } = await sb.from("plano_notes").delete().eq("id", entry.remoteId);
   if (error) throw error;
   return true;
+}
+
+function logEntryFromRow(row) {
+  return {
+    remoteId: row.id,
+    ts: row.ts,
+    tsBR: row.ts_br || row.ts,
+    type: row.type,
+    itemId: row.item_id || "",
+    details: row.details || "",
+    user: row.user_name || "(sem nome)",
+    browser: row.browser || ""
+  };
+}
+
+function trimLog() {
+  if (log.length > 500) log = log.slice(0, 500);
+}
+
+function setupLogRealtime() {
+  if (!sb) return;
+  sb.channel("plano-log-shared")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "plano_log" }, payload => {
+      const entry = logEntryFromRow(payload.new);
+      if (log.some(e => e.remoteId === entry.remoteId)) return;
+      log.unshift(entry);
+      trimLog();
+      saveJSON(KEY_LOG, log);
+      renderLog();
+      updateNavBadges();
+    })
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: "plano_log" }, payload => {
+      const id = payload.old.id;
+      const before = log.length;
+      log = log.filter(e => e.remoteId !== id);
+      if (log.length !== before) {
+        saveJSON(KEY_LOG, log);
+        renderLog();
+        updateNavBadges();
+      }
+    })
+    .subscribe();
+}
+
+async function pushLogToRemote(entry) {
+  if (!sb || !logSyncReady) return true;
+  const { data, error } = await sb.from("plano_log").insert({
+    ts: entry.ts,
+    ts_br: entry.tsBR,
+    type: entry.type,
+    item_id: entry.itemId,
+    details: entry.details,
+    user_name: entry.user,
+    browser: entry.browser
+  }).select().single();
+  if (error) throw error;
+  entry.remoteId = data.id;
+  return true;
+}
+
+async function clearLogRemote() {
+  if (!sb || !logSyncReady) return true;
+  const { error } = await sb.from("plano_log").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (error) throw error;
+  return true;
+}
+
+async function initSharedData() {
+  if (!supabaseConfigured()) {
+    updateSyncBadge("off", "Dados só neste navegador");
+    return;
+  }
+  if (!window.supabase) {
+    updateSyncBadge("err", "Erro ao carregar Supabase");
+    return;
+  }
+  sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  try {
+    const notesRes = await sb.from("plano_notes").select("*").order("ts", { ascending: true });
+    if (notesRes.error) throw notesRes.error;
+    notes = rebuildNotesObject(notesRes.data);
+    saveJSON(KEY_NOTES, notes);
+    notesSyncReady = true;
+    setupNotesRealtime();
+
+    const logRes = await sb.from("plano_log").select("*").order("ts", { ascending: false }).limit(500);
+    if (logRes.error) {
+      console.warn("Log compartilhado indisponível:", logRes.error);
+    } else {
+      log = (logRes.data || []).map(logEntryFromRow);
+      saveJSON(KEY_LOG, log);
+      logSyncReady = true;
+      setupLogRealtime();
+    }
+
+    const parts = [];
+    if (notesSyncReady) parts.push("anotações");
+    if (logSyncReady) parts.push("log");
+    if (parts.length) updateSyncBadge("ok", parts.join(" e ") + " compartilhados · ao vivo");
+    else updateSyncBadge("err", "Falha na sincronização");
+  } catch (err) {
+    console.error("Falha ao sincronizar dados compartilhados:", err);
+    updateSyncBadge("err", "Falha na sincronização");
+  }
 }
 
 // Apply seed once — flag Realizado items as completed at 02/07/2026
@@ -3004,17 +3085,28 @@ function shortBrowser() {
 }
 
 function addLog(type, itemId, details) {
-  log.unshift({
+  const entry = {
     ts: new Date().toISOString(),
     tsBR: nowStamp(),
     type, itemId: itemId || "",
     details: details || "",
     user: user || "(sem nome)",
     browser: shortBrowser(),
-  });
-  if (log.length > 500) log = log.slice(0, 500);
-  saveJSON(KEY_LOG, log);
-  renderLog(); updateNavBadges();
+  };
+
+  (async () => {
+    try {
+      if (sb && logSyncReady) await pushLogToRemote(entry);
+      log.unshift(entry);
+      trimLog();
+      saveJSON(KEY_LOG, log);
+      renderLog();
+      updateNavBadges();
+    } catch (err) {
+      console.error(err);
+      alert("Não consegui registrar no log compartilhado. Verifique a conexão e tente de novo.");
+    }
+  })();
 }
 
 // ============================================================
@@ -3685,8 +3777,19 @@ $("#log-export").addEventListener("click", () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `plano-acao-gelo_log_${todayISO()}.csv`; a.click();
 });
 $("#log-clear").addEventListener("click", () => {
-  if (confirm("Limpar todo o log? Essa ação não pode ser desfeita.")) {
-    log = []; saveJSON(KEY_LOG, log); renderLog(); updateNavBadges();
+  if (confirm("Limpar todo o log compartilhado? Todos perderão o histórico. Essa ação não pode ser desfeita.")) {
+    (async () => {
+      try {
+        if (sb && logSyncReady) await clearLogRemote();
+        log = [];
+        saveJSON(KEY_LOG, log);
+        renderLog();
+        updateNavBadges();
+      } catch (err) {
+        console.error(err);
+        alert("Não consegui limpar o log compartilhado.");
+      }
+    })();
   }
 });
 
@@ -3694,7 +3797,7 @@ $("#log-clear").addEventListener("click", () => {
 // INICIA
 // ============================================================
 (async function bootstrap() {
-  await initSharedNotes();
+  await initSharedData();
   renderCards();
   renderDashboard();
   renderLog();

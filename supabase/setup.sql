@@ -33,3 +33,38 @@ create policy "plano_notes_delete"
   using (true);
 
 alter publication supabase_realtime add table public.plano_notes;
+
+-- Log de atividades compartilhado
+create table if not exists public.plano_log (
+  id uuid primary key default gen_random_uuid(),
+  ts timestamptz not null default now(),
+  ts_br text,
+  type text not null,
+  item_id text default '',
+  details text default '',
+  user_name text,
+  browser text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists plano_log_ts_idx on public.plano_log (ts desc);
+
+alter table public.plano_log enable row level security;
+
+drop policy if exists "plano_log_select" on public.plano_log;
+drop policy if exists "plano_log_insert" on public.plano_log;
+drop policy if exists "plano_log_delete" on public.plano_log;
+
+create policy "plano_log_select"
+  on public.plano_log for select
+  using (true);
+
+create policy "plano_log_insert"
+  on public.plano_log for insert
+  with check (true);
+
+create policy "plano_log_delete"
+  on public.plano_log for delete
+  using (true);
+
+alter publication supabase_realtime add table public.plano_log;
