@@ -102,3 +102,40 @@ create policy "plano_state_delete"
   using (true);
 
 alter publication supabase_realtime add table public.plano_state;
+
+-- Ações personalizadas criadas pelo botão "Nova ação"
+create table if not exists public.plano_custom_actions (
+  id text primary key,
+  title text not null,
+  resp jsonb not null default '[]',
+  deadline date not null,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists plano_custom_actions_created_idx on public.plano_custom_actions (created_at);
+
+alter table public.plano_custom_actions enable row level security;
+
+drop policy if exists "plano_custom_actions_select" on public.plano_custom_actions;
+drop policy if exists "plano_custom_actions_insert" on public.plano_custom_actions;
+drop policy if exists "plano_custom_actions_update" on public.plano_custom_actions;
+drop policy if exists "plano_custom_actions_delete" on public.plano_custom_actions;
+
+create policy "plano_custom_actions_select"
+  on public.plano_custom_actions for select
+  using (true);
+
+create policy "plano_custom_actions_insert"
+  on public.plano_custom_actions for insert
+  with check (true);
+
+create policy "plano_custom_actions_update"
+  on public.plano_custom_actions for update
+  using (true) with check (true);
+
+create policy "plano_custom_actions_delete"
+  on public.plano_custom_actions for delete
+  using (true);
+
+alter publication supabase_realtime add table public.plano_custom_actions;

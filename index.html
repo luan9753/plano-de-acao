@@ -187,6 +187,64 @@
   }
   .btn-tool:hover { color: var(--primary); border-color: var(--primary); }
   .btn-tool.danger:hover { color: var(--danger); border-color: var(--danger); }
+  .btn-tool.primary {
+    background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600;
+  }
+  .btn-tool.primary:hover { filter: brightness(1.08); color: #fff; }
+
+  /* Modal Nova/Editar ação */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(15,23,42,.55); backdrop-filter: blur(2px);
+    align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--panel, #fff); color: var(--ink); width: 100%; max-width: 560px;
+    border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    border: 1px solid var(--line); overflow: hidden; animation: modalIn .18s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+  }
+  .modal-head h3 { margin: 0; font-size: 17px; }
+  .modal-head .close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted); line-height: 1; }
+  .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-body label { font-size: 12px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .modal-body input[type=text], .modal-body input[type=date], .modal-body textarea, .modal-body select {
+    width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 8px; font-family: inherit; color: var(--ink); background: var(--bg, #fff);
+  }
+  .modal-body textarea { min-height: 72px; resize: vertical; }
+  .modal-body .field-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  .modal-body .field-error { font-size: 12px; color: var(--danger); margin-top: 5px; display: none; }
+  .modal-body .field-error.show { display: block; }
+  .resp-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .resp-pick {
+    background: transparent; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all .12s ease;
+  }
+  .resp-pick.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .modal-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); }
+  .modal-foot .spacer { flex: 1; }
+  .btn-modal {
+    padding: 9px 16px; font-size: 13px; border-radius: 8px; cursor: pointer; font-weight: 600; border: 1px solid var(--line); background: transparent; color: var(--ink);
+  }
+  .btn-modal.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-modal.primary:hover { filter: brightness(1.08); }
+  .btn-modal.danger { color: var(--danger); border-color: var(--danger); }
+  .btn-modal.danger:hover { background: var(--danger); color: #fff; }
+
+  /* Selo e controles de ação personalizada */
+  .card-actions { display: flex; gap: 4px; }
+  .card-actions button {
+    background: none; border: none; cursor: pointer; font-size: 13px; padding: 2px 4px;
+    border-radius: 6px; opacity: .6; transition: opacity .12s ease;
+  }
+  .card-actions button:hover { opacity: 1; background: var(--line); }
+  .badge-custom { font-size: 10px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 999px; padding: 2px 7px; letter-spacing: .03em; }
 
   /* Date groups */
   .date-group { margin-bottom: 28px; }
@@ -622,6 +680,7 @@
         <button class="chip" data-resp="Kleyton Fraga">Kleyton Fraga</button>
         <button class="chip" data-resp="Departamento de Suprimentos">Depto. Suprimentos</button>
         <button class="chip" data-resp="RH">RH</button>
+        <button class="btn-tool primary" id="btn-new-action">➕ Nova ação</button>
         <button class="btn-tool" id="btn-export">💾 Exportar estado</button>
         <button class="btn-tool" id="btn-import">📥 Importar estado</button>
         <button class="btn-tool danger" id="btn-reset-flags">🔄 Zerar conclusões</button>
@@ -2812,87 +2871,130 @@ ADM: Anderson Sansini
   </main>
 </div>
 
+<div class="modal-overlay" id="action-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="action-modal-title">
+    <div class="modal-head">
+      <h3 id="action-modal-title">➕ Nova ação</h3>
+      <button class="close" id="action-modal-close" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label for="af-title">Descrição da ação *</label>
+        <textarea id="af-title" placeholder="Ex.: Instalar contêiner refrigerado no agente de Fortaleza"></textarea>
+        <div class="field-error" id="af-title-error">Descreva a ação (mínimo 5 caracteres).</div>
+      </div>
+      <div>
+        <label for="af-deadline">Prazo *</label>
+        <input type="date" id="af-deadline">
+        <div class="field-error" id="af-deadline-error">Selecione um prazo válido.</div>
+      </div>
+      <div>
+        <label>Responsáveis</label>
+        <div class="resp-picker" id="af-resp-picker"></div>
+        <input type="text" id="af-resp-extra" placeholder="Outro responsável (separe por vírgula) e tecle Enter" style="margin-top:8px;">
+        <div class="field-hint">Clique para selecionar. Você pode adicionar novos nomes no campo acima.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-modal danger" id="af-delete" style="display:none;">🗑️ Excluir</button>
+      <span class="spacer"></span>
+      <button class="btn-modal" id="af-cancel">Cancelar</button>
+      <button class="btn-modal primary" id="af-save">Salvar ação</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script>
 // ============================================================
 // DADOS
 // ============================================================
-const ACTIONS = [
+const EMBEDDED_ACTIONS = [
   // 02/07 — Melhorias já implementadas ou em andamento (base do CSV Melhorias - Processo VTC)
-  { id: "M1",  title: "[Sistemas · Romaneio] Melhoria no processo de romaneio, com inserção de opção de modal de expedição, para impedir inserção de cargas aéreas e rodoviárias no mesmo romaneio", resp: [], deadline: "2026-07-02" },
-  { id: "M2",  title: "[Sistemas · Romaneio] Bloqueio de finalização de Romaneio quando há caixas sem loggers vinculados à LPN", resp: [], deadline: "2026-07-02" },
-  { id: "M3",  title: "[Sistemas · Romaneio] Bloqueio de finalização de Romaneio quando não há logger registrado no veículo (carga peletizada)", resp: [], deadline: "2026-07-02" },
-  { id: "M4",  title: "[Sistemas · Romaneio] Alerta de inserção de caixa sem datalogger no romaneio, no ato da bipagem das caixas pelo transporte", resp: [], deadline: "2026-07-02" },
-  { id: "M5",  title: "[Sistemas · Emissão] Bloqueio de emissão de coleta quando não há romaneio gerado para o pedido", resp: [], deadline: "2026-07-02" },
-  { id: "M6",  title: "[Sistemas · Emissão] Bloqueio de emissão de Coleta quando a quantidade a ser coletada não for igual ao registrado em romaneio (impedindo a emissão se houver divergência)", resp: [], deadline: "2026-07-02" },
-  { id: "M7",  title: "[Sistemas · Romaneio] Inserção de travas no romaneio para as embalagens térmicas que requerem datalogger, impedindo inserção de volumes sem datalogger", resp: [], deadline: "2026-07-02" },
-  { id: "M8",  title: "[Sistemas · Packing List] Remodelação do processo de packing list, emitindo o documento de forma particionada, de acordo com a parcela do pedido que foi expedida (conforme LPNs inseridas no romaneio)", resp: [], deadline: "2026-07-02" },
-  { id: "M9",  title: "[Sistemas · Emissão] Bloqueio para permitir emissão de coleta de cargas somente quando o romaneio estiver finalizado (carregado)", resp: [], deadline: "2026-07-02" },
-  { id: "M10", title: "[Sistemas · Conferência de Packing] Tornar o atual formulário de packing em um processo sistêmico, para checagem de loggers nos volumes pela própria câmara fria antes da entrega ao transporte", resp: [], deadline: "2026-07-02" },
-  { id: "M11", title: "[Sistemas · Cubagem Automática] Criação de novos KITs de embalagem, de acordo com a quantidade de gelo e peso inseridos nas caixas (para cubagem automática)", resp: [], deadline: "2026-07-02" },
-  { id: "M12", title: "[Processo · Ambientação de Gelo] Alteração do processo de maturação do gelo para ambientação próxima da temperatura de uso", resp: [], deadline: "2026-07-02" },
-  { id: "M13", title: "[Estrutura · Ambientação de Gelo] Criação de áreas com temperatura de −4 °C para nova etapa de ambientação do gelo próxima da temperatura de uso", resp: [], deadline: "2026-07-02" },
-  { id: "M14", title: "[Processo · Ambientação de Gelo] Alteração de processo para movimentação de gaiolas de maturação ser aprovada pela Garantia da Qualidade para cumprimento dos prazos do processo de maturação e ambientação", resp: [], deadline: "2026-07-02" },
-  { id: "M15", title: "[Equipamentos · Ambientação de Gelo] Compra de termômetro infravermelho de maior precisão para medição dos elementos refrigerantes", resp: [], deadline: "2026-07-02" },
-  { id: "M16", title: "[Equipamentos · Ambientação de Gelo] Compra de termômetro TERMOPAR de contato para medição dos elementos refrigerantes (maior precisão de medição)", resp: [], deadline: "2026-07-02" },
-  { id: "M17", title: "[Processo · Montagem de Embalagens] Alteração da quantidade de gelos a ser inserida nas caixas térmicas do modal rodoviário para melhor equilíbrio térmico", resp: [], deadline: "2026-07-02" },
-  { id: "M18", title: "[Processo · Montagem de Embalagens] Alteração da quantidade de gelos a ser inserida nas caixas VTCBOX para melhor equilíbrio térmico", resp: [], deadline: "2026-07-02" },
+  { id: "1",  title: "[Sistemas · Romaneio] Melhoria no processo de romaneio, com inserção de opção de modal de expedição, para impedir inserção de cargas aéreas e rodoviárias no mesmo romaneio", resp: [], deadline: "2026-07-02" },
+  { id: "2",  title: "[Sistemas · Romaneio] Bloqueio de finalização de Romaneio quando há caixas sem loggers vinculados à LPN", resp: [], deadline: "2026-07-02" },
+  { id: "3",  title: "[Sistemas · Romaneio] Bloqueio de finalização de Romaneio quando não há logger registrado no veículo (carga peletizada)", resp: [], deadline: "2026-07-02" },
+  { id: "4",  title: "[Sistemas · Romaneio] Alerta de inserção de caixa sem datalogger no romaneio, no ato da bipagem das caixas pelo transporte", resp: [], deadline: "2026-07-02" },
+  { id: "5",  title: "[Sistemas · Emissão] Bloqueio de emissão de coleta quando não há romaneio gerado para o pedido", resp: [], deadline: "2026-07-02" },
+  { id: "6",  title: "[Sistemas · Emissão] Bloqueio de emissão de Coleta quando a quantidade a ser coletada não for igual ao registrado em romaneio (impedindo a emissão se houver divergência)", resp: [], deadline: "2026-07-02" },
+  { id: "7",  title: "[Sistemas · Romaneio] Inserção de travas no romaneio para as embalagens térmicas que requerem datalogger, impedindo inserção de volumes sem datalogger", resp: [], deadline: "2026-07-02" },
+  { id: "8",  title: "[Sistemas · Packing List] Remodelação do processo de packing list, emitindo o documento de forma particionada, de acordo com a parcela do pedido que foi expedida (conforme LPNs inseridas no romaneio)", resp: [], deadline: "2026-07-02" },
+  { id: "9",  title: "[Sistemas · Emissão] Bloqueio para permitir emissão de coleta de cargas somente quando o romaneio estiver finalizado (carregado)", resp: [], deadline: "2026-07-02" },
+  { id: "10", title: "[Sistemas · Conferência de Packing] Tornar o atual formulário de packing em um processo sistêmico, para checagem de loggers nos volumes pela própria câmara fria antes da entrega ao transporte", resp: [], deadline: "2026-07-02" },
+  { id: "11", title: "[Sistemas · Cubagem Automática] Criação de novos KITs de embalagem, de acordo com a quantidade de gelo e peso inseridos nas caixas (para cubagem automática)", resp: [], deadline: "2026-07-02" },
+  { id: "12", title: "[Processo · Ambientação de Gelo] Alteração do processo de maturação do gelo para ambientação próxima da temperatura de uso", resp: [], deadline: "2026-07-02" },
+  { id: "13", title: "[Estrutura · Ambientação de Gelo] Criação de áreas com temperatura de −4 °C para nova etapa de ambientação do gelo próxima da temperatura de uso", resp: [], deadline: "2026-07-02" },
+  { id: "14", title: "[Processo · Ambientação de Gelo] Alteração de processo para movimentação de gaiolas de maturação ser aprovada pela Garantia da Qualidade para cumprimento dos prazos do processo de maturação e ambientação", resp: [], deadline: "2026-07-02" },
+  { id: "15", title: "[Equipamentos · Ambientação de Gelo] Compra de termômetro infravermelho de maior precisão para medição dos elementos refrigerantes", resp: [], deadline: "2026-07-02" },
+  { id: "16", title: "[Equipamentos · Ambientação de Gelo] Compra de termômetro TERMOPAR de contato para medição dos elementos refrigerantes (maior precisão de medição)", resp: [], deadline: "2026-07-02" },
+  { id: "17", title: "[Processo · Montagem de Embalagens] Alteração da quantidade de gelos a ser inserida nas caixas térmicas do modal rodoviário para melhor equilíbrio térmico", resp: [], deadline: "2026-07-02" },
+  { id: "18", title: "[Processo · Montagem de Embalagens] Alteração da quantidade de gelos a ser inserida nas caixas VTCBOX para melhor equilíbrio térmico", resp: [], deadline: "2026-07-02" },
 
   // 07/07
-  { id: "1.1",  title: "Definir responsável do processo de movimentação de gaiolas de gelox", resp: ["Rogério Neves"], deadline: "2026-07-07" },
-  { id: "1.2",  title: "Definir responsável do Controle de Qualidade", resp: ["Henrique Oliveira"], deadline: "2026-07-07" },
-  { id: "1.3",  title: "Procedimentar o processo de movimentação e maturação do gelo com todos seus controles, anexos e responsáveis", resp: ["Henrique Oliveira","Camila Almeida"], deadline: "2026-07-07" },
-  { id: "3",    title: "Descontinuar uso da antecâmara de −7 °C", resp: ["Alexandre Toledo"], deadline: "2026-07-07" },
-  { id: "4",    title: "Padronizar via Instrução de Trabalho o uso dos contêineres do pátio a −4 °C", resp: ["Henrique Oliveira"], deadline: "2026-07-07" },
-  { id: "10",   title: "Provocar o Rafael Duarte para revisão do peso do KIT de embalagens no sistema para o peso atual (Henrique Oliveira aciona; Rafael executa até 07/07)", resp: ["Rafael Duarte"], deadline: "2026-07-07" },
-  { id: "13.1", title: "Revisão / Levantamento dos coordenadores dos carros VTC", resp: ["Roberto Júnior"], deadline: "2026-07-07" },
-  { id: "14",   title: "Trocar pedidos e montar novos em 100% das caixas novas", resp: ["Rogério Neves","Henrique Oliveira"], deadline: "2026-07-07" },
-  { id: "15",   title: "Verificar status da requisição de compra do telêmetro de contato nº 78347", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
-  { id: "16",   title: "Enviar e-mail ao setor de Suprimentos solicitando orçamento para instalação de contêiner em todas as capitais onde não há filial da VTC (prazo interno de 30/07 para instalação)", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
-  { id: "21",   title: "Enviar e-mail ao RH informando a necessidade de contratação de um responsável em todos os estados que não possuímos filial da VTC para a operação", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
-  { id: "28",   title: "Contatar a empresa chinesa de dataloggers para os equipamentos ultracongelados: obter orçamento e prazo de entrega para 1.000 unidades", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-07" },
-  { id: "28.1", title: "Confirmar a migração do protocolo do datalogger chinês para o banco de dados do Ares Control", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-07" },
+  { id: "19",  title: "Definir responsável do processo de movimentação de gaiolas de gelox", resp: ["Rogério Neves"], deadline: "2026-07-07" },
+  { id: "20",  title: "Definir responsável do Controle de Qualidade", resp: ["Henrique Oliveira"], deadline: "2026-07-07" },
+  { id: "21",  title: "Procedimentar o processo de movimentação e maturação do gelo com todos seus controles, anexos e responsáveis", resp: ["Henrique Oliveira","Camila Almeida"], deadline: "2026-07-07" },
+  { id: "22",  title: "Descontinuar uso da antecâmara de −7 °C", resp: ["Alexandre Toledo"], deadline: "2026-07-07" },
+  { id: "23",  title: "Padronizar via Instrução de Trabalho o uso dos contêineres do pátio a −4 °C", resp: ["Henrique Oliveira"], deadline: "2026-07-07" },
+  { id: "24",  title: "Provocar o Rafael Duarte para revisão do peso do KIT de embalagens no sistema para o peso atual (Henrique Oliveira aciona; Rafael executa até 07/07)", resp: ["Rafael Duarte"], deadline: "2026-07-07" },
+  { id: "25",  title: "Revisão / Levantamento dos coordenadores dos carros VTC", resp: ["Roberto Júnior"], deadline: "2026-07-07" },
+  { id: "26",  title: "Trocar pedidos e montar novos em 100% das caixas novas", resp: ["Rogério Neves","Henrique Oliveira"], deadline: "2026-07-07" },
+  { id: "27",  title: "Verificar status da requisição de compra do telêmetro de contato nº 78347", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
+  { id: "28",  title: "Enviar e-mail ao setor de Suprimentos solicitando orçamento para instalação de contêiner em todas as capitais onde não há filial da VTC (prazo interno de 30/07 para instalação)", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
+  { id: "29",  title: "Enviar e-mail ao RH informando a necessidade de contratação de um responsável em todos os estados que não possuímos filial da VTC para a operação", resp: ["Antonio Rodrigues"], deadline: "2026-07-07" },
+  { id: "30",  title: "Contatar a empresa chinesa de dataloggers para os equipamentos ultracongelados: obter orçamento e prazo de entrega para 1.000 unidades", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-07" },
+  { id: "31",  title: "Confirmar a migração do protocolo do datalogger chinês para o banco de dados do Ares Control", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-07" },
 
   // 08/07
-  { id: "7",    title: "Analisar organograma da qualidade", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-08" },
-  { id: "8",    title: "Analisar metodologia nos Apps de entrega da VTC/ESL que possibilite a informação exata do momento da chegada da carga no local da entrega, inclusive em entregas parciais; e atualizar planilha de informação para o Gerenciamento Térmico com a referida data como data e hora efetiva da entrega (prazo interno 10/07)", resp: ["Rafael Duarte","Luan Machado","Henrique Oliveira"], deadline: "2026-07-08" },
-  { id: "13.2", title: "Levantar os carros fixos por agentes e cargas que realizam as entregas das cargas da VTC para instalação dos coordenadores térmicos", resp: ["Daniela Gonçalves"], deadline: "2026-07-08" },
-  { id: "17",   title: "Entrar em contato com o fornecedor Exaltainer para reunião sobre o resultado da qualificação da embalagem de PU", resp: ["Henrique Oliveira"], deadline: "2026-07-08" },
-  { id: "23",   title: "Chamar empresa de manutenção dos Ultrafreezers da ColdLab e Indrel para instalação de controle térmico", resp: ["Henrique Oliveira"], deadline: "2026-07-08" },
+  { id: "32",  title: "Analisar organograma da qualidade", resp: ["Antonio Rodrigues","Alexandre Toledo","Henrique Oliveira"], deadline: "2026-07-08" },
+  { id: "33",  title: "Analisar metodologia nos Apps de entrega da VTC/ESL que possibilite a informação exata do momento da chegada da carga no local da entrega, inclusive em entregas parciais; e atualizar planilha de informação para o Gerenciamento Térmico com a referida data como data e hora efetiva da entrega (prazo interno 10/07)", resp: ["Rafael Duarte","Luan Machado","Henrique Oliveira"], deadline: "2026-07-08" },
+  { id: "34",  title: "Levantar os carros fixos por agentes e cargas que realizam as entregas das cargas da VTC para instalação dos coordenadores térmicos", resp: ["Daniela Gonçalves"], deadline: "2026-07-08" },
+  { id: "35",  title: "Entrar em contato com o fornecedor Exaltainer para reunião sobre o resultado da qualificação da embalagem de PU", resp: ["Henrique Oliveira"], deadline: "2026-07-08" },
+  { id: "36",  title: "Chamar empresa de manutenção dos Ultrafreezers da ColdLab e Indrel para instalação de controle térmico", resp: ["Henrique Oliveira"], deadline: "2026-07-08" },
 
   // 09/07
-  { id: "5.1",  title: "Calibrar balança (laboratório de CQ Insumos)", resp: ["Camila Almeida"], deadline: "2026-07-09" },
-  { id: "5.2",  title: "Instalar compressor (laboratório de CQ Insumos)", resp: ["Antonio Rodrigues","Alexandre Toledo","Marcelo Ribeiro","Cláudio Simão"], deadline: "2026-07-09" },
-  { id: "5.3",  title: "Instalar demais equipamentos (laboratório de CQ Insumos)", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-09" },
-  { id: "6",    title: "Avaliação de posicionamento de embalagens — modal rodoviário (inclui 6.1 ajustar carregamento com espaço de circulação de ar)", resp: ["Henrique Oliveira"], deadline: "2026-07-09" },
-  { id: "9",    title: "Validar o desenho do projeto do berço e aprovar orçamento para ajuste do molde do berço", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-09" },
-  { id: "12",   title: "Ir na fábrica de gelo e analisar controle de qualidade de liberação de lotes", resp: ["Antonio Rodrigues","Henrique Oliveira"], deadline: "2026-07-09" },
-  { id: "26",   title: "Analisar contrato da SYOS quanto à rescisão contratual ou à troca de equipamentos pelo arsenal já existente em catálogo do fornecedor", resp: ["Antonio Rodrigues"], deadline: "2026-07-09" },
-  { id: "27",   title: "Cobrar do engenheiro da Newin o equipamento de monitoramento in-house (sonda + placa Wi-Fi + 4G de redundância + ligação em tomada + pilha de redundância) com protocolo compatível com o Ares Control", resp: ["Antonio Rodrigues"], deadline: "2026-07-09" },
+  { id: "37",  title: "Calibrar balança (laboratório de CQ Insumos)", resp: ["Camila Almeida"], deadline: "2026-07-09" },
+  { id: "38",  title: "Instalar compressor (laboratório de CQ Insumos)", resp: ["Antonio Rodrigues","Alexandre Toledo","Marcelo Ribeiro","Cláudio Simão"], deadline: "2026-07-09" },
+  { id: "39",  title: "Instalar demais equipamentos (laboratório de CQ Insumos)", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-09" },
+  { id: "40",  title: "Avaliação de posicionamento de embalagens — modal rodoviário (inclui 6.1 ajustar carregamento com espaço de circulação de ar)", resp: ["Henrique Oliveira"], deadline: "2026-07-09" },
+  { id: "41",  title: "Validar o desenho do projeto do berço e aprovar orçamento para ajuste do molde do berço", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-09" },
+  { id: "42",  title: "Ir na fábrica de gelo e analisar controle de qualidade de liberação de lotes", resp: ["Antonio Rodrigues","Henrique Oliveira"], deadline: "2026-07-09" },
+  { id: "43",  title: "Analisar contrato da SYOS quanto à rescisão contratual ou à troca de equipamentos pelo arsenal já existente em catálogo do fornecedor", resp: ["Antonio Rodrigues"], deadline: "2026-07-09" },
+  { id: "44",  title: "Cobrar do engenheiro da Newin o equipamento de monitoramento in-house (sonda + placa Wi-Fi + 4G de redundância + ligação em tomada + pilha de redundância) com protocolo compatível com o Ares Control", resp: ["Antonio Rodrigues"], deadline: "2026-07-09" },
 
   // 10/07
-  { id: "2",    title: "Elaborar desenho técnico e planta baixa para nova antecâmara de ambientação de gelox a temperatura −4 °C", resp: ["Cláudio Simão"], deadline: "2026-07-10" },
-  { id: "5",    title: "Implantar rotina, procedimentos e registros do controle de qualidade dos insumos recebidos", resp: ["Antonio Rodrigues","Henrique Oliveira","Camila Almeida"], deadline: "2026-07-10" },
-  { id: "5.4",  title: "Validar a eficácia do controle de qualidade dos insumos", resp: ["Camila Almeida"], deadline: "2026-07-10" },
-  { id: "22",   title: "Entrar em contato com todos os agentes de carga das capitais para levantamento de espaço disponível e condições de uso para instalação de contêiner de 40 pés, dois freezers horizontais de 510 L e área de 20 m² para armazenagem de insumos (embalagens térmicas)", resp: ["Daniela Gonçalves"], deadline: "2026-07-10" },
-  { id: "24",   title: "Realizar orçamento para aquisição de dataloggers de temperatura para ultracongelados destinados à distribuição das vacinas da Pfizer", resp: ["Antonio Rodrigues","Departamento de Suprimentos"], deadline: "2026-07-10" },
-  { id: "25",   title: "Enviar e-mail ao setor de Suprimentos provocando a resposta sobre o orçamento dos dataloggers de ultracongelados (item 24)", resp: ["Antonio Rodrigues"], deadline: "2026-07-10" },
+  { id: "45",  title: "Elaborar desenho técnico e planta baixa para nova antecâmara de ambientação de gelox a temperatura −4 °C", resp: ["Cláudio Simão"], deadline: "2026-07-10" },
+  { id: "46",  title: "Implantar rotina, procedimentos e registros do controle de qualidade dos insumos recebidos", resp: ["Antonio Rodrigues","Henrique Oliveira","Camila Almeida"], deadline: "2026-07-10" },
+  { id: "47",  title: "Validar a eficácia do controle de qualidade dos insumos", resp: ["Camila Almeida"], deadline: "2026-07-10" },
+  { id: "48",  title: "Entrar em contato com todos os agentes de carga das capitais para levantamento de espaço disponível e condições de uso para instalação de contêiner de 40 pés, dois freezers horizontais de 510 L e área de 20 m² para armazenagem de insumos (embalagens térmicas)", resp: ["Daniela Gonçalves"], deadline: "2026-07-10" },
+  { id: "49",  title: "Realizar orçamento para aquisição de dataloggers de temperatura para ultracongelados destinados à distribuição das vacinas da Pfizer", resp: ["Antonio Rodrigues","Departamento de Suprimentos"], deadline: "2026-07-10" },
+  { id: "50",  title: "Enviar e-mail ao setor de Suprimentos provocando a resposta sobre o orçamento dos dataloggers de ultracongelados (item 24)", resp: ["Antonio Rodrigues"], deadline: "2026-07-10" },
 
   // 15/07
-  { id: "20",   title: "Desenhar o projeto Boomerang do ponto de vista operacional, produtivo, programação e atendimento com os fluxos logísticos", resp: ["Antonio Rodrigues"], deadline: "2026-07-15" },
+  { id: "51",  title: "Desenhar o projeto Boomerang do ponto de vista operacional, produtivo, programação e atendimento com os fluxos logísticos", resp: ["Antonio Rodrigues"], deadline: "2026-07-15" },
 
   // 20/07
-  { id: "19",   title: "Fechar a viabilidade do projeto Boomerang (caixa melhor na ida e caixa específica para entrega da mercadoria)", resp: ["Kleyton Fraga"], deadline: "2026-07-20" },
+  { id: "52",  title: "Fechar a viabilidade do projeto Boomerang (caixa melhor na ida e caixa específica para entrega da mercadoria)", resp: ["Kleyton Fraga"], deadline: "2026-07-20" },
 
   // 30/07
-  { id: "11.1", title: "Alinhamento do processo de entrega — contratar pessoas para os agentes", resp: ["RH"], deadline: "2026-07-30" },
-  { id: "13.3", title: "Substituir os coordenadores com inconsistência de conectividade nos locais recebedores", resp: ["Antonio Rodrigues"], deadline: "2026-07-30" },
-  { id: "18",   title: "Implantar definitivamente a operação para utilizar a Versão 2 do Ares Control", resp: ["Henrique Oliveira","Luan Machado","Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-30" },
+  { id: "53",  title: "Alinhamento do processo de entrega — contratar pessoas para os agentes", resp: ["RH"], deadline: "2026-07-30" },
+  { id: "54",  title: "Substituir os coordenadores com inconsistência de conectividade nos locais recebedores", resp: ["Antonio Rodrigues"], deadline: "2026-07-30" },
+  { id: "55",  title: "Implantar definitivamente a operação para utilizar a Versão 2 do Ares Control", resp: ["Henrique Oliveira","Luan Machado","Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-07-30" },
 
   // 10/08
-  { id: "11.2", title: "Colocar contêiner 2 a 8 °C em todos os agentes", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-08-10" },
+  { id: "56",  title: "Colocar contêiner 2 a 8 °C em todos os agentes", resp: ["Antonio Rodrigues","Alexandre Toledo"], deadline: "2026-08-10" },
 ];
+
+// ACTIONS = base embutida + ações personalizadas (criadas pelos usuários, vindas do Supabase)
+let customActions = [];
+let ACTIONS = EMBEDDED_ACTIONS.slice();
+function rebuildActions(){
+  ACTIONS = EMBEDDED_ACTIONS.concat(customActions.map(c => ({
+    id: c.id, title: c.title, resp: Array.isArray(c.resp) ? c.resp : [],
+    deadline: c.deadline, custom: true, createdBy: c.createdBy || "", createdAt: c.createdAt || ""
+  })));
+}
 
 const DIAS = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 const GROUP_COLORS = {
@@ -2903,7 +3005,7 @@ const GROUP_COLORS = {
 };
 
 // Melhorias com status "Realizado" — serão marcadas concluídas automaticamente
-const SEED_COMPLETED = ["M1","M2","M3","M4","M5","M6","M7","M8","M9","M11","M12","M13","M14","M15","M17","M18"];
+const SEED_COMPLETED = ["1","2","3","4","5","6","7","8","9","11","12","13","14","15","17","18"];
 const SEED_VERSION = "seed_v6_melhorias";
 
 // ============================================================
@@ -3199,6 +3301,16 @@ async function initSharedData() {
       setupStateRealtime();
     }
 
+    const custRes = await sb.from("plano_custom_actions").select("*").order("created_at", { ascending: true });
+    if (custRes.error) {
+      console.warn("Ações personalizadas indisponíveis:", custRes.error);
+    } else {
+      customActions = (custRes.data || []).map(customActionFromRow);
+      rebuildActions();
+      customActionsReady = true;
+      setupCustomActionsRealtime();
+    }
+
     const parts = [];
     if (notesSyncReady) parts.push("anotações");
     if (logSyncReady) parts.push("log");
@@ -3222,6 +3334,213 @@ async function initSharedData() {
   saveJSON(KEY_STATE, state);
   localStorage.setItem(KEY_SEED, SEED_VERSION);
 })();
+
+// ============================================================
+// SUPABASE — ações personalizadas (botão "Nova ação")
+// ============================================================
+let customActionsReady = false;
+
+function customActionFromRow(row) {
+  let resp = [];
+  try { resp = Array.isArray(row.resp) ? row.resp : JSON.parse(row.resp || "[]"); } catch { resp = []; }
+  return { id: String(row.id), title: row.title, resp, deadline: row.deadline, createdBy: row.created_by || "", createdAt: row.created_at || "" };
+}
+
+function setupCustomActionsRealtime() {
+  if (!sb) return;
+  sb.channel("plano-custom-actions")
+    .on("postgres_changes", { event: "*", schema: "public", table: "plano_custom_actions" }, () => { reloadCustomActions(); })
+    .subscribe();
+}
+
+async function reloadCustomActions() {
+  if (!sb) return;
+  const res = await sb.from("plano_custom_actions").select("*").order("created_at", { ascending: true });
+  if (res.error) { console.warn("Ações personalizadas indisponíveis:", res.error); return; }
+  customActions = (res.data || []).map(customActionFromRow);
+  rebuildActions(); ensureRespChips();
+  renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+}
+
+function nextActionId() {
+  let max = 0;
+  ACTIONS.forEach(a => { const n = parseInt(a.id, 10); if (!isNaN(n) && n > max) max = n; });
+  return String(max + 1);
+}
+
+function allRespNames() {
+  const set = new Set();
+  $$(".chip[data-resp]").forEach(c => { if (c.dataset.resp && c.dataset.resp !== "all") set.add(c.dataset.resp); });
+  ACTIONS.forEach(a => (a.resp || []).forEach(r => set.add(r)));
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "pt"));
+}
+
+// Garante que exista um chip de filtro para cada responsável presente nas ações
+function ensureRespChips() {
+  const bar = document.querySelector(".filters");
+  if (!bar) return;
+  const existing = new Set($$(".chip[data-resp]").map(c => c.dataset.resp));
+  const anchor = $("#btn-new-action");
+  allRespNames().forEach(name => {
+    if (existing.has(name)) return;
+    const chip = document.createElement("button");
+    chip.className = "chip"; chip.dataset.resp = name; chip.textContent = name;
+    chip.addEventListener("click", () => {
+      $$(".chip[data-resp]").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active"); filterResp = name; applyFilters();
+    });
+    bar.insertBefore(chip, anchor);
+    existing.add(name);
+  });
+}
+
+// ---------- Modal Nova/Editar ação ----------
+let editingActionId = null;
+let modalRespSel = new Set();
+
+function buildRespPicker() {
+  const box = $("#af-resp-picker");
+  box.innerHTML = "";
+  allRespNames().forEach(name => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "resp-pick" + (modalRespSel.has(name) ? " on" : "");
+    b.textContent = name;
+    b.addEventListener("click", () => {
+      if (modalRespSel.has(name)) modalRespSel.delete(name); else modalRespSel.add(name);
+      b.classList.toggle("on");
+    });
+    box.appendChild(b);
+  });
+}
+
+function openActionModal(id) {
+  editingActionId = id || null;
+  modalRespSel = new Set();
+  const titleEl = $("#af-title"), dateEl = $("#af-deadline"), extraEl = $("#af-resp-extra");
+  $("#af-title-error").classList.remove("show");
+  $("#af-deadline-error").classList.remove("show");
+  extraEl.value = "";
+  if (editingActionId) {
+    const a = ACTIONS.find(x => x.id === editingActionId);
+    if (!a) return;
+    $("#action-modal-title").textContent = "✏️ Editar ação " + a.id;
+    titleEl.value = a.title;
+    dateEl.value = a.deadline;
+    (a.resp || []).forEach(r => modalRespSel.add(r));
+    $("#af-delete").style.display = "";
+    $("#af-save").textContent = "Salvar alterações";
+  } else {
+    $("#action-modal-title").textContent = "➕ Nova ação";
+    titleEl.value = "";
+    dateEl.value = todayISO();
+    $("#af-delete").style.display = "none";
+    $("#af-save").textContent = "Criar ação";
+  }
+  buildRespPicker();
+  $("#action-modal").classList.add("show");
+  setTimeout(() => titleEl.focus(), 60);
+}
+
+function closeActionModal() {
+  $("#action-modal").classList.remove("show");
+  editingActionId = null;
+}
+
+function collectRespFromModal() {
+  const resp = new Set(modalRespSel);
+  const extra = $("#af-resp-extra").value || "";
+  extra.split(",").map(s => s.trim()).filter(Boolean).forEach(n => resp.add(n));
+  return Array.from(resp);
+}
+
+async function saveAction() {
+  const title = $("#af-title").value.trim();
+  const deadline = $("#af-deadline").value;
+  let ok = true;
+  if (title.length < 5) { $("#af-title-error").classList.add("show"); ok = false; } else $("#af-title-error").classList.remove("show");
+  if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) { $("#af-deadline-error").classList.add("show"); ok = false; } else $("#af-deadline-error").classList.remove("show");
+  if (!ok) return;
+  const resp = collectRespFromModal();
+  const saveBtn = $("#af-save"); saveBtn.disabled = true;
+
+  try {
+    if (editingActionId) {
+      if (sb && customActionsReady) {
+        const { error } = await sb.from("plano_custom_actions")
+          .update({ title, resp, deadline }).eq("id", editingActionId);
+        if (error) throw error;
+        await reloadCustomActions();
+      } else {
+        const c = customActions.find(x => x.id === editingActionId);
+        if (c) { c.title = title; c.resp = resp; c.deadline = deadline; }
+        rebuildActions(); ensureRespChips(); renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+      }
+      addLog("edit-action", editingActionId, `Ação ${editingActionId} editada: "${title.slice(0,70)}${title.length>70?'…':''}"`);
+    } else {
+      const id = nextActionId();
+      if (sb && customActionsReady) {
+        const { error } = await sb.from("plano_custom_actions")
+          .insert({ id, title, resp, deadline, created_by: user || "(sem nome)" });
+        if (error) throw error;
+        await reloadCustomActions();
+      } else {
+        customActions.push({ id, title, resp, deadline, createdBy: user || "(sem nome)", createdAt: new Date().toISOString() });
+        rebuildActions(); ensureRespChips(); renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+      }
+      addLog("new-action", id, `Ação ${id} criada: "${title.slice(0,70)}${title.length>70?'…':''}" (prazo ${fmtBR(deadline)})`);
+    }
+    closeActionModal();
+  } catch (err) {
+    console.error(err);
+    alert("Não consegui salvar a ação compartilhada. Verifique a conexão e tente de novo.");
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteCustomAction(id) {
+  const a = ACTIONS.find(x => x.id === id);
+  if (!a || !a.custom) return;
+  if (!confirm(`Excluir a ação ${id}?\n\n"${a.title}"\n\nIsso vale para TODOS e não pode ser desfeito.`)) return;
+  try {
+    if (sb && customActionsReady) {
+      const { error } = await sb.from("plano_custom_actions").delete().eq("id", id);
+      if (error) throw error;
+      if (stateSyncReady) await unsetStateRemote(id).catch(() => {});
+      if (notesSyncReady) await sb.from("plano_notes").delete().eq("item_id", id).catch(() => {});
+      await reloadCustomActions();
+    } else {
+      customActions = customActions.filter(x => x.id !== id);
+      rebuildActions();
+    }
+    delete state[id]; delete notes[id];
+    saveJSON(KEY_STATE, state); saveJSON(KEY_NOTES, notes);
+    addLog("del-action", id, `Ação ${id} excluída: "${a.title.slice(0,70)}${a.title.length>70?'…':''}"`);
+    rebuildActions(); ensureRespChips(); renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+  } catch (err) {
+    console.error(err);
+    alert("Não consegui excluir a ação compartilhada. Verifique a conexão.");
+  }
+}
+
+function bindActionModal() {
+  $("#btn-new-action").addEventListener("click", () => openActionModal());
+  $("#action-modal-close").addEventListener("click", closeActionModal);
+  $("#af-cancel").addEventListener("click", closeActionModal);
+  $("#af-save").addEventListener("click", saveAction);
+  $("#af-delete").addEventListener("click", () => { if (editingActionId) deleteCustomAction(editingActionId); });
+  $("#action-modal").addEventListener("click", e => { if (e.target.id === "action-modal") closeActionModal(); });
+  $("#af-resp-extra").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault();
+      const v = $("#af-resp-extra").value.trim();
+      if (v) { v.split(",").map(s => s.trim()).filter(Boolean).forEach(n => modalRespSel.add(n)); $("#af-resp-extra").value = ""; buildRespPicker(); }
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("#action-modal").classList.contains("show")) closeActionModal();
+  });
+}
 
 // ============================================================
 // HELPERS
@@ -3393,7 +3712,9 @@ function renderCards() {
       card.innerHTML = `
         <div class="row-top">
           <span class="n">${a.id}</span>
+          ${a.custom ? '<span class="badge-custom" title="Ação criada pela equipe">NOVA</span>' : ''}
           <span class="status-tag ${st}">${STATUS_LABEL[st]}</span>
+          ${a.custom ? `<span class="card-actions"><button data-edit-action="${a.id}" title="Editar ação">✏️</button><button data-delete-action="${a.id}" title="Excluir ação">🗑️</button></span>` : ''}
         </div>
         <p class="title">${a.title}</p>
         <div class="meta">${respHtml}</div>
@@ -3455,6 +3776,13 @@ function renderCards() {
         alert("Não consegui salvar a conclusão compartilhada. Verifique a conexão e tente de novo.");
       }
     });
+  });
+
+  container.querySelectorAll("[data-edit-action]").forEach(btn => {
+    btn.addEventListener("click", () => openActionModal(btn.dataset.editAction));
+  });
+  container.querySelectorAll("[data-delete-action]").forEach(btn => {
+    btn.addEventListener("click", () => deleteCustomAction(btn.dataset.deleteAction));
   });
 
   // === Notes: toggle abrir/fechar ===
@@ -3846,7 +4174,7 @@ function bindAlertUI() {
 // ============================================================
 // LOG
 // ============================================================
-const LOG_TYPE_LABELS = { done: "Concluída", undo: "Reaberta", reset: "Reset", user: "Usuário", export: "Exportação", seed: "Registro histórico", note: "Anotação", notedel: "Anotação removida" };
+const LOG_TYPE_LABELS = { done: "Concluída", undo: "Reaberta", reset: "Reset", user: "Usuário", export: "Exportação", seed: "Registro histórico", note: "Anotação", notedel: "Anotação removida", "new-action": "Ação criada", "edit-action": "Ação editada", "del-action": "Ação excluída" };
 function renderLog() {
   const body = $("#log-body"); body.innerHTML = "";
   if (!log.length) { $("#log-empty").style.display = "block"; return; }
@@ -3939,7 +4267,7 @@ $("#btn-reset-flags").addEventListener("click", () => {
   }
 });
 $("#btn-export").addEventListener("click", () => {
-  const payload = { exportedAt: new Date().toISOString(), state, log, notes };
+  const payload = { exportedAt: new Date().toISOString(), state, log, notes, customActions };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = `plano-acao-gelo_estado_${todayISO()}.json`; a.click();
@@ -3974,6 +4302,14 @@ $("#btn-import").addEventListener("click", () => {
             current.sort((a,b) => a.ts.localeCompare(b.ts));
             notes[id] = current;
           });
+        }
+        if (Array.isArray(data.customActions) && data.customActions.length) {
+          if (sb && customActionsReady) {
+            const rows = data.customActions.map(c => ({ id: String(c.id), title: c.title, resp: Array.isArray(c.resp) ? c.resp : [], deadline: c.deadline, created_by: c.createdBy || "(importado)" }));
+            sb.from("plano_custom_actions").upsert(rows, { onConflict: "id" }).then(({ error }) => { if (!error) reloadCustomActions(); else console.error(error); });
+          } else {
+            customActions = data.customActions.slice(); rebuildActions();
+          }
         }
         saveJSON(KEY_STATE, state); saveJSON(KEY_LOG, log); saveJSON(KEY_NOTES, notes);
         if (sb && stateSyncReady) {
@@ -4020,7 +4356,9 @@ $("#log-clear").addEventListener("click", () => {
 // INICIA
 // ============================================================
 (async function bootstrap() {
+  bindActionModal();
   await initSharedData();
+  ensureRespChips();
   renderCards();
   renderDashboard();
   renderLog();
