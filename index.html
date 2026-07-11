@@ -3702,10 +3702,20 @@ function bindAlertUI() {
   applyAlertCfgToUI();
 
   $("#btn-cfg-alerts").addEventListener("click", () => {
-    $("#alert-cfg").classList.toggle("hidden");
+    const cfg = $("#alert-cfg");
+    const nowOpen = cfg.classList.toggle("hidden") === false;
+    if (nowOpen) {
+      $("#alert-help").classList.add("hidden");
+      setTimeout(() => cfg.scrollIntoView({ behavior: "smooth", block: "center" }), 40);
+    }
   });
   $("#btn-help-alerts").addEventListener("click", () => {
-    $("#alert-help").classList.toggle("hidden");
+    const help = $("#alert-help");
+    const nowOpen = help.classList.toggle("hidden") === false;
+    if (nowOpen) {
+      $("#alert-cfg").classList.add("hidden");
+      setTimeout(() => help.scrollIntoView({ behavior: "smooth", block: "center" }), 40);
+    }
   });
   const persist = () => {
     alertCfg.urgentDays  = parseInt($("#cfg-urgent").value, 10) || 0;
