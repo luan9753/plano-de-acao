@@ -370,6 +370,32 @@
   .cfg-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
   .cfg-row label { color: var(--ink-soft); }
   .cfg-row input[type="number"] { width: 60px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-family: inherit; text-align: center; }
+  .cfg-hint { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin: -4px 0 2px; line-height: 1.45; }
+  .cfg-presets {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-top: 4px; padding-top: 10px; border-top: 1px dashed var(--line);
+  }
+  .cfg-presets-lbl { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .btn-preset {
+    background: #fff; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; color: var(--ink-soft); cursor: pointer;
+  }
+  .btn-preset:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+  .alert-help {
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); line-height: 1.55;
+  }
+  .alert-help.hidden { display: none; }
+  .alert-help h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+  .alert-help h4 { margin: 14px 0 6px; font-size: 12.5px; color: var(--ink); text-transform: uppercase; letter-spacing: .06em; }
+  .alert-help p { margin: 0 0 8px; }
+  .alert-help ul { margin: 0 0 8px; padding-left: 18px; }
+  .alert-help li { margin-bottom: 4px; }
+  .alert-help table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0 12px; }
+  .alert-help th, .alert-help td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .alert-help th { background: #f7f9fc; color: var(--ink); font-weight: 600; }
+  .alert-help code { font-size: 11.5px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
 
   @keyframes pulse-overdue {
     0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
@@ -2489,6 +2515,7 @@ Antonio enviou em 07/07/2026 - A ordem de prioridades dos estados para o RH: PR/
             <div class="alerts-summary" id="alerts-summary">🔴 10 vencida(s) · 🟠 13 urgente(s) (≤ 1d) · 🟡 6 próxima(s) (≤ 3d) · janelas configuradas: 1d / 3d</div>
           </div>
           <div class="alerts-tools">
+            <button id="btn-help-alerts" title="Guia de referência do painel">📖 Guia</button>
             <button id="btn-cfg-alerts" title="Configurar janelas de alerta">⚙️ Configurar</button>
           </div>
         </div>
@@ -2623,12 +2650,61 @@ Antonio enviou em 07/07/2026 - A ordem de prioridades dos estados para o RH: PR/
           <div class="cfg-title">Parâmetros de alerta</div>
           <div class="cfg-grid">
             <div class="cfg-row"><label>🟠 URGENTE — vencendo em ≤</label><input type="number" id="cfg-urgent" min="0" max="30" value="1"><span>dia(s)</span></div>
+            <p class="cfg-hint">Padrão: 1 dia (0–30). Ações que vencem hoje ou nos próximos N dias entram em laranja.</p>
             <div class="cfg-row"><label>🟡 ATENÇÃO — vencendo em ≤</label><input type="number" id="cfg-warning" min="0" max="30" value="3"><span>dia(s)</span></div>
+            <p class="cfg-hint">Padrão: 3 dias (0–30). Nunca fica menor que URGENTE — o sistema ajusta automaticamente.</p>
             <div class="cfg-row"><label><input type="checkbox" id="cfg-pulse" checked=""> Destacar (pulsar) cards vencidos</label></div>
+            <p class="cfg-hint">Cards vencidos pulsam em vermelho no Plano de Ação. Desligue se achar distrativo.</p>
             <div class="cfg-row"><label><input type="checkbox" id="cfg-sound"> Tocar aviso sonoro ao carregar</label></div>
+            <p class="cfg-hint">Bipe curto se houver vencidas ou urgentes ao abrir. Alguns navegadores exigem um clique antes de tocar áudio.</p>
             <div class="cfg-row"><label><input type="checkbox" id="cfg-notify"> Notificações do navegador</label></div>
+            <p class="cfg-hint">Notificação nativa ao abrir, se houver alertas. O navegador pede permissão na primeira vez.</p>
             <div class="cfg-row"><button class="btn-tool" id="cfg-save">💾 Salvar padrão</button></div>
+            <p class="cfg-hint">Grava no navegador desta pessoa e registra a alteração no <strong>Log de Atividades</strong> compartilhado.</p>
+            <div class="cfg-presets">
+              <span class="cfg-presets-lbl">Perfis recomendados:</span>
+              <button type="button" class="btn-preset" data-preset="individual">👤 Individual</button>
+              <button type="button" class="btn-preset" data-preset="monitor">🖥️ Monitoramento</button>
+              <button type="button" class="btn-preset" data-preset="mobile">📱 Mobile</button>
+            </div>
           </div>
+        </div>
+
+        <div class="alert-help hidden" id="alert-help">
+          <h3>📖 Painel de Urgência — Guia de referência</h3>
+          <p>Documento interno do plano <strong>Reformulação Operacional · Termolábeis</strong>. As ações <strong>não concluídas</strong> são classificadas automaticamente com base no prazo e na data de hoje do seu dispositivo.</p>
+
+          <h4>Categorias de alerta</h4>
+          <table>
+            <thead><tr><th>Categoria</th><th>Cor</th><th>Regra</th></tr></thead>
+            <tbody>
+              <tr><td>🔴 Vencidas em aberto</td><td>Vermelho</td><td>Prazo já passou e a ação continua aberta.</td></tr>
+              <tr><td>🟠 URGENTE</td><td>Laranja</td><td>Vence hoje ou nos próximos N dias (parâmetro URGENTE).</td></tr>
+              <tr><td>🟡 ATENÇÃO</td><td>Amarelo</td><td>Vence dentro da janela ampla (parâmetro ATENÇÃO).</td></tr>
+              <tr><td>✅ Sob controle</td><td>Verde</td><td>Nenhuma ação dentro das janelas configuradas.</td></tr>
+            </tbody>
+          </table>
+          <p>Clicando em um item da lista, o plano abre o card correspondente com um flash amarelo.</p>
+
+          <h4>Comportamento automático</h4>
+          <ul>
+            <li>Recalcula os alertas a cada <strong>1 hora</strong> com a aba aberta, ou ao marcar/desmarcar conclusões.</li>
+            <li>O número ao lado de <strong>Painel de Urgência</strong> mostra o total de alertas (vencidas + urgentes + atenção).</li>
+            <li>Badge <strong>vermelho</strong> se houver vencidas; <strong>laranja</strong> se houver urgentes (sem vencidas).</li>
+            <li>Os parâmetros ficam no <code>localStorage</code> do seu navegador — cada pessoa pode ter configurações diferentes.</li>
+            <li>Anotações e log de atividades são compartilhados via Supabase; os parâmetros de alerta <strong>não</strong> sincronizam entre usuários.</li>
+          </ul>
+
+          <h4>Rastreabilidade no log</h4>
+          <p>Ao clicar em <strong>💾 Salvar padrão</strong>, entra no log compartilhado uma linha como: <em>Parâmetros de alerta atualizados (urgente=Xd, atenção=Yd)</em>, com data, usuário e navegador.</p>
+
+          <h4>Perfis recomendados</h4>
+          <ul>
+            <li><strong>Individual (líder):</strong> URGENTE 1d, ATENÇÃO 3d, pulsar ligado.</li>
+            <li><strong>Monitoramento (sala de controle):</strong> URGENTE 1d, ATENÇÃO 5d, pulsar, som e notificação ligados.</li>
+            <li><strong>Mobile (executivos):</strong> URGENTE 3d, ATENÇÃO 7d — horizonte mais amplo para cobrança antecipada.</li>
+          </ul>
+          <p style="margin:0;color:var(--muted);font-size:12px;">Use os botões de perfil em <strong>⚙️ Configurar</strong> para aplicar rapidamente.</p>
         </div>
       </section>
     </div>
@@ -3608,15 +3684,28 @@ function pushNativeNotifications(alerts) {
   if (!parts.length) return;
   new Notification("Plano de Ação — Termolábeis", { body: parts.join(" · "), tag: "plano-gelo-alerts" });
 }
-function bindAlertUI() {
-  $("#cfg-urgent").value   = alertCfg.urgentDays;
-  $("#cfg-warning").value  = alertCfg.warningDays;
+const ALERT_PRESETS = {
+  individual: { urgentDays: 1, warningDays: 3, pulse: true,  sound: false, notify: false, label: "Individual" },
+  monitor:    { urgentDays: 1, warningDays: 5, pulse: true,  sound: true,  notify: true,  label: "Monitoramento" },
+  mobile:     { urgentDays: 3, warningDays: 7, pulse: true,  sound: false, notify: true,  label: "Mobile" },
+};
+
+function applyAlertCfgToUI() {
+  $("#cfg-urgent").value  = alertCfg.urgentDays;
+  $("#cfg-warning").value = alertCfg.warningDays;
   $("#cfg-pulse").checked  = !!alertCfg.pulse;
   $("#cfg-sound").checked  = !!alertCfg.sound;
   $("#cfg-notify").checked = !!alertCfg.notify;
+}
+
+function bindAlertUI() {
+  applyAlertCfgToUI();
 
   $("#btn-cfg-alerts").addEventListener("click", () => {
     $("#alert-cfg").classList.toggle("hidden");
+  });
+  $("#btn-help-alerts").addEventListener("click", () => {
+    $("#alert-help").classList.toggle("hidden");
   });
   const persist = () => {
     alertCfg.urgentDays  = parseInt($("#cfg-urgent").value, 10) || 0;
@@ -3625,12 +3714,26 @@ function bindAlertUI() {
     alertCfg.sound  = $("#cfg-sound").checked;
     alertCfg.notify = $("#cfg-notify").checked;
     if (alertCfg.notify && Notification.permission === "default") Notification.requestPermission();
-    saveJSON(KEY_ALERTS, alertCfg); renderAlerts();
+    applyAlertCfgToUI();
+    saveJSON(KEY_ALERTS, alertCfg);
+    renderAlerts();
+    updateNavBadges();
   };
   ["#cfg-urgent","#cfg-warning","#cfg-pulse","#cfg-sound","#cfg-notify"].forEach(s => $(s).addEventListener("change", persist));
   $("#cfg-save").addEventListener("click", () => {
     persist();
     addLog("user", "", `Parâmetros de alerta atualizados (urgente=${alertCfg.urgentDays}d, atenção=${alertCfg.warningDays}d)`);
+  });
+  document.querySelectorAll("[data-preset]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const p = ALERT_PRESETS[btn.dataset.preset];
+      if (!p) return;
+      Object.assign(alertCfg, { urgentDays: p.urgentDays, warningDays: p.warningDays, pulse: p.pulse, sound: p.sound, notify: p.notify });
+      applyAlertCfgToUI();
+      persist();
+      $("#alert-cfg").classList.remove("hidden");
+      addLog("user", "", `Perfil de alerta aplicado: ${p.label} (urgente=${p.urgentDays}d, atenção=${p.warningDays}d)`);
+    });
   });
 }
 
