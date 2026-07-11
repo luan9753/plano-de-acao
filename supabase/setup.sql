@@ -68,3 +68,37 @@ create policy "plano_log_delete"
   using (true);
 
 alter publication supabase_realtime add table public.plano_log;
+
+-- Conclusões marcadas compartilhadas
+create table if not exists public.plano_state (
+  item_id text primary key,
+  completed boolean not null default true,
+  completed_at timestamptz,
+  completed_by text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.plano_state enable row level security;
+
+drop policy if exists "plano_state_select" on public.plano_state;
+drop policy if exists "plano_state_insert" on public.plano_state;
+drop policy if exists "plano_state_update" on public.plano_state;
+drop policy if exists "plano_state_delete" on public.plano_state;
+
+create policy "plano_state_select"
+  on public.plano_state for select
+  using (true);
+
+create policy "plano_state_insert"
+  on public.plano_state for insert
+  with check (true);
+
+create policy "plano_state_update"
+  on public.plano_state for update
+  using (true) with check (true);
+
+create policy "plano_state_delete"
+  on public.plano_state for delete
+  using (true);
+
+alter publication supabase_realtime add table public.plano_state;

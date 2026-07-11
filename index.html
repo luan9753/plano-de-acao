@@ -2803,8 +2803,8 @@ ADM: Anderson Sansini
     <footer class="notes">
       <strong>Compartilhamento entre pessoas</strong>
       <ul>
-        <li><strong>Anotações e log de atividades</strong> são compartilhados em tempo real via Supabase — todos que abrirem o link veem as mesmas entradas.</li>
-        <li>Conclusões marcadas e parâmetros de alerta continuam no navegador de cada pessoa (<code>localStorage</code>).</li>
+        <li><strong>Anotações, log de atividades e conclusões marcadas</strong> são compartilhados em tempo real via Supabase — todos que abrirem o link veem o mesmo progresso.</li>
+        <li>Apenas os parâmetros de alerta (janelas de dias, som, notificações) continuam no navegador de cada pessoa (<code>localStorage</code>), pois são preferências individuais.</li>
         <li>Digite seu nome na barra lateral antes de salvar anotações, para identificar quem escreveu.</li>
       </ul>
     </footer>
@@ -2934,6 +2934,7 @@ let openNotes = new Set(); // ids atualmente com seção de anotações expandid
 let sb = null;
 let notesSyncReady = false;
 let logSyncReady = false;
+let stateSyncReady = false;
 
 function updateSyncBadge(mode, text) {
   const el = $("#sync-status");
@@ -3086,6 +3087,73 @@ async function clearLogRemote() {
   return true;
 }
 
+const STATE_SEED_MARKER = "__SEEDED__";
+
+function rebuildStateObject(rows) {
+  const next = {};
+  (rows || []).forEach(r => {
+    if (r.item_id === STATE_SEED_MARKER) return;
+    if (r.completed) next[r.item_id] = { completed: true, completedAt: r.completed_at, completedBy: r.completed_by };
+  });
+  return next;
+}
+
+function setupStateRealtime() {
+  if (!sb) return;
+  sb.channel("plano-state-shared")
+    .on("postgres_changes", { event: "*", schema: "public", table: "plano_state" }, payload => {
+      const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+      if (!row || row.item_id === STATE_SEED_MARKER) return;
+      if (payload.eventType === "DELETE" || !row.completed) delete state[row.item_id];
+      else state[row.item_id] = { completed: true, completedAt: row.completed_at, completedBy: row.completed_by };
+      saveJSON(KEY_STATE, state);
+      renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+    })
+    .subscribe();
+}
+
+async function setStateRemote(id, entry) {
+  if (!sb || !stateSyncReady) return true;
+  const { error } = await sb.from("plano_state").upsert({
+    item_id: id,
+    completed: true,
+    completed_at: entry.completedAt,
+    completed_by: entry.completedBy,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "item_id" });
+  if (error) throw error;
+  return true;
+}
+
+async function unsetStateRemote(id) {
+  if (!sb || !stateSyncReady) return true;
+  const { error } = await sb.from("plano_state").delete().eq("item_id", id);
+  if (error) throw error;
+  return true;
+}
+
+async function clearStateRemote() {
+  if (!sb || !stateSyncReady) return true;
+  const { error } = await sb.from("plano_state").delete().neq("item_id", STATE_SEED_MARKER);
+  if (error) throw error;
+  return true;
+}
+
+async function seedStateRemoteIfNeeded() {
+  const marker = await sb.from("plano_state").select("item_id").eq("item_id", STATE_SEED_MARKER).maybeSingle();
+  if (marker.error) throw marker.error;
+  if (marker.data) return; // já semeado alguma vez
+  const rows = SEED_COMPLETED.map(id => ({
+    item_id: id,
+    completed: true,
+    completed_at: "2026-07-02T12:00:00.000Z",
+    completed_by: "Registro histórico (CSV Melhorias)"
+  }));
+  rows.push({ item_id: STATE_SEED_MARKER, completed: false });
+  const { error } = await sb.from("plano_state").upsert(rows, { onConflict: "item_id" });
+  if (error) throw error;
+}
+
 async function initSharedData() {
   if (!supabaseConfigured()) {
     updateSyncBadge("off", "Dados só neste navegador");
@@ -3114,10 +3182,28 @@ async function initSharedData() {
       setupLogRealtime();
     }
 
+    const stateRes = await sb.from("plano_state").select("*");
+    if (stateRes.error) {
+      console.warn("Conclusões compartilhadas indisponíveis:", stateRes.error);
+    } else {
+      let rows = stateRes.data || [];
+      const hasMarker = rows.some(r => r.item_id === STATE_SEED_MARKER);
+      if (!hasMarker && rows.length === 0) {
+        await seedStateRemoteIfNeeded();
+        const reload = await sb.from("plano_state").select("*");
+        if (!reload.error) rows = reload.data || [];
+      }
+      state = rebuildStateObject(rows);
+      saveJSON(KEY_STATE, state);
+      stateSyncReady = true;
+      setupStateRealtime();
+    }
+
     const parts = [];
     if (notesSyncReady) parts.push("anotações");
     if (logSyncReady) parts.push("log");
-    if (parts.length) updateSyncBadge("ok", parts.join(" e ") + " compartilhados · ao vivo");
+    if (stateSyncReady) parts.push("conclusões");
+    if (parts.length) updateSyncBadge("ok", parts.join(", ") + " compartilhados · ao vivo");
     else updateSyncBadge("err", "Falha na sincronização");
   } catch (err) {
     console.error("Falha ao sincronizar dados compartilhados:", err);
@@ -3345,19 +3431,29 @@ function renderCards() {
   }
 
   container.querySelectorAll("[data-toggle]").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const id = btn.dataset.toggle;
       const a = ACTIONS.find(x => x.id === id);
       const cur = state[id]?.completed === true;
-      if (cur) {
-        delete state[id];
-        addLog("undo", id, `Desmarcada: "${a.title.slice(0,80)}${a.title.length>80?'…':''}"`);
-      } else {
-        state[id] = { completed: true, completedAt: new Date().toISOString(), completedBy: user || "(sem nome)" };
-        addLog("done", id, `Concluída: "${a.title.slice(0,80)}${a.title.length>80?'…':''}"`);
+      btn.disabled = true;
+      try {
+        if (cur) {
+          if (sb && stateSyncReady) await unsetStateRemote(id);
+          delete state[id];
+          addLog("undo", id, `Desmarcada: "${a.title.slice(0,80)}${a.title.length>80?'…':''}"`);
+        } else {
+          const entry = { completed: true, completedAt: new Date().toISOString(), completedBy: user || "(sem nome)" };
+          if (sb && stateSyncReady) await setStateRemote(id, entry);
+          state[id] = entry;
+          addLog("done", id, `Concluída: "${a.title.slice(0,80)}${a.title.length>80?'…':''}"`);
+        }
+        saveJSON(KEY_STATE, state);
+        renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+      } catch (err) {
+        console.error(err);
+        btn.disabled = false;
+        alert("Não consegui salvar a conclusão compartilhada. Verifique a conexão e tente de novo.");
       }
-      saveJSON(KEY_STATE, state);
-      renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
     });
   });
 
@@ -3826,12 +3922,20 @@ $("#filter-clear").addEventListener("click", () => {
 });
 
 $("#btn-reset-flags").addEventListener("click", () => {
-  if (confirm("Zerar todas as conclusões marcadas? Esta ação será registrada no log.")) {
-    const n = Object.keys(state).length;
-    state = {}; localStorage.removeItem(KEY_SEED);
-    saveJSON(KEY_STATE, state);
-    addLog("reset", "", `Todas as ${n} conclusões foram desmarcadas`);
-    renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+  if (confirm("Zerar todas as conclusões marcadas? Isso vale para TODOS e será registrado no log. Esta ação não pode ser desfeita.")) {
+    (async () => {
+      try {
+        const n = Object.keys(state).length;
+        if (sb && stateSyncReady) await clearStateRemote();
+        state = {}; localStorage.removeItem(KEY_SEED);
+        saveJSON(KEY_STATE, state);
+        addLog("reset", "", `Todas as ${n} conclusões foram desmarcadas`);
+        renderCards(); renderDashboard(); applyFilters(); renderAlerts(); updateNavBadges();
+      } catch (err) {
+        console.error(err);
+        alert("Não consegui zerar as conclusões compartilhadas. Verifique a conexão.");
+      }
+    })();
   }
 });
 $("#btn-export").addEventListener("click", () => {
@@ -3872,6 +3976,12 @@ $("#btn-import").addEventListener("click", () => {
           });
         }
         saveJSON(KEY_STATE, state); saveJSON(KEY_LOG, log); saveJSON(KEY_NOTES, notes);
+        if (sb && stateSyncReady) {
+          const rows = Object.keys(state).filter(id => state[id]?.completed).map(id => ({
+            item_id: id, completed: true, completed_at: state[id].completedAt, completed_by: state[id].completedBy, updated_at: new Date().toISOString()
+          }));
+          if (rows.length) sb.from("plano_state").upsert(rows, { onConflict: "item_id" }).then(({ error }) => { if (error) console.error(error); });
+        }
         addLog("user", "", "Estado importado de arquivo JSON (mesclagem de conclusões, log e anotações)");
         renderCards(); renderDashboard(); renderLog(); applyFilters(); renderAlerts(); updateNavBadges();
         alert("Estado importado com sucesso.");
