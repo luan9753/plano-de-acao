@@ -1,4 +1,4 @@
-// Preencha com as credenciais do seu projeto Supabase
-// Dashboard → Project Settings → API
-window.SUPABASE_URL = "COLE_AQUI_SUA_URL";
-window.SUPABASE_ANON_KEY = "COLE_AQUI_SUA_ANON_KEY";
+// Credenciais do projeto Supabase (plano-de-acao)
+// A chave "publishable" é segura para uso no navegador (protegida por RLS).
+window.SUPABASE_URL = "https://bpxiuegqhxhuofyiyujq.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_9q6pLEPJ3DmbWhNVm2IRHQ_f9_eojBD";
